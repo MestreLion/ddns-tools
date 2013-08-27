@@ -18,6 +18,12 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program. See <http://www.gnu.org/licenses/gpl.html>
 
+# References:
+# http://forums.redflagdeals.com/dyndns-free-account-policy-changes-1336819/2/#post16855638
+# https://github.com/ntrrgc/dyndns-bot
+# https://github.com/illusori/dyndns-login-cron
+# https://github.com/flurischt/DynDNS
+
 DYNDNS_USERNAME = ""
 DYNDNS_PASSWORD = ""
 
@@ -119,6 +125,10 @@ def login(username, password, visible=False):
             # email the screenshot
             logger.info("emailing screenshot")
             try:
+#             process = subprocess.Popen(
+#                 ['echo "login success" | mail -s "dyndns login success" YOUREMAIL@DOMAIN.TLD'],
+#                 shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#             stdout, stderr = process.communicate()
                 sendmail.sendmail(myname,
                                   username,
                                   "Dyndns automatic web login successful",
