@@ -72,7 +72,7 @@ def login(username, password, visible=False):
     try:
         if pyvirtualdisplay and not visible:
             logger.info("using pyVirtualDisplay")
-            display = pyvirtualdisplay.Display(visible=False, size=(800, 600))
+            display = pyvirtualdisplay.Display(visible=False, size=(1280, 720))
             display.start()
 
         if selenium:
