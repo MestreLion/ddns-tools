@@ -122,6 +122,10 @@ def login(username, password, visible=False):
             time.sleep(5)  # 5 is arbitrary, possibly too big, and maybe useless
             driver.get_screenshot_as_file(screenshot)
 
+            # Test login success
+            success = ("My Dyn Account" in driver.title or
+                       "Log Out" in driver.page_source)
+
             # email the screenshot
             logger.info("emailing screenshot")
             try:
@@ -131,7 +135,8 @@ def login(username, password, visible=False):
 #             stdout, stderr = process.communicate()
                 sendmail.sendmail(myname,
                                   username,
-                                  "Dyndns automatic web login successful",
+                                  "Dyndns automatic web login %s" %
+                                  ("successful" if success else "FAILED!"),
                                   "Here's the screenshot...",
                                   screenshot,
                                   debug = args.loglevel == 'debug',
