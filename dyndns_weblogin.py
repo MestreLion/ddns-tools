@@ -28,14 +28,13 @@ DYNDNS_USERNAME = ""
 DYNDNS_PASSWORD = ""
 
 import sys
-import os
 import os.path as osp
 import logging
 import argparse
 import time
 import datetime
 import random
-import keyring
+import xdg.BaseDirectory as xdg
 
 import sendmail
 
@@ -51,15 +50,20 @@ except ImportError:
 
 
 logger = logging.getLogger(__name__)
-xdg_cache = os.environ.get('XDG_CACHE_HOME') or osp.expanduser('~/.cache')
 myname = __name__
 
 def read_config(save=False, username=None, password=None):
-    #TODO: read from (private) file and/or keyring
+    config = osp.join(xdg.save_config_path(myname), "%s.conf" % myname)
     if save:
-        keyring.set_password('dyndns', '', '%s\n%s' % (username, password))
+        with open(config, 'w') as fd:
+            fd.write("%s\n%s\n" % (username, password))
     else:
-        username, password = keyring.get_password('dyndns', '').split('\n')
+        try:
+            with open(config, 'r') as fd:
+                username = fd.readline().strip('\n')
+                password = fd.readline().strip('\n')
+        except IOError:
+            logger.warn("Could not read config file. Use --save to set one")
 
     return dict(username=username,
                 password=password)
@@ -105,7 +109,6 @@ def login(username, password, visible=False):
             #input_submit   = driver.find_element_by_xpath(
             #    "//input[starts-with(@id, 'login') and contains(@id, 'submit')]")
 
-
             # fill data
             input_username.send_keys(username)
             input_password.send_keys(password)
@@ -116,7 +119,7 @@ def login(username, password, visible=False):
             input_submit.click()  # or input_password.submit() or form.submit()
 
             # wait for page to load completely and take a screenshot
-            screenshot = osp.join(xdg_cache, "%s_%s.png" % (myname,
+            screenshot = osp.join(xdg.xdg_cache_home, "%s_%s.png" % (myname,
                                   datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
             logger.info("saving screenshot as %s", screenshot)
             time.sleep(5)  # 5 is arbitrary, possibly too big, and maybe useless
@@ -192,13 +195,17 @@ if __name__ == '__main__':
     args = parseargs()
     logging.basicConfig(level=getattr(logging, args.loglevel.upper(), None),
                         format='%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s',
-                        filename=osp.join(xdg_cache, '%s.log' % myname)
+                        filename=osp.join(xdg.xdg_cache_home, '%s.log' % myname)
                         )
 
     config = read_config(args.save, args.username, args.password)
 
     username = args.username or config['username'] or DYNDNS_USERNAME
     password = args.password or config['password'] or DYNDNS_PASSWORD
+
+    if not (username and password):
+        logger.critical("Username or Password are blank, aborting.")
+        sys.exit(1)
 
     try:
         if login(username, password, args.visible):
