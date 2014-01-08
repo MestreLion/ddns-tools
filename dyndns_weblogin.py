@@ -71,8 +71,10 @@ def read_config(save=False, username=None, password=None):
 
 def login(username, password, visible=False, debug=False):
     loginurl = "https://account.dyn.com/entrance"
+    success = False
     display = None
     driver = None
+
     try:
         if pyvirtualdisplay and not visible:
             logger.info("using pyVirtualDisplay")
@@ -121,8 +123,6 @@ def login(username, password, visible=False, debug=False):
             input_submit.click()  # or input_password.submit() or form.submit()
 
             # wait for page to load completely and take a screenshot
-            screenshot = osp.join(xdg.xdg_cache_home, "%s_%s.png" % (myname,
-                                  datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
             logger.info("saving screenshot as %s", screenshot)
             time.sleep(5)  # 5 is arbitrary, possibly too big, and maybe useless
             driver.get_screenshot_as_file(screenshot)
@@ -131,37 +131,15 @@ def login(username, password, visible=False, debug=False):
             success = ("My Dyn Account" in driver.title or
                        "Log Out" in driver.page_source)
 
-            # email the screenshot
-            logger.info("emailing screenshot")
-            try:
-#             process = subprocess.Popen(
-#                 ['echo "login success" | mail -s "dyndns login success" YOUREMAIL@DOMAIN.TLD'],
-#                 shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-#             stdout, stderr = process.communicate()
-                sendmail.sendmail(myname,
-                                  username,
-                                  "Dyndns automatic web login %s" %
-                                  ("successful" if success else "FAILED!"),
-                                  "Here's the screenshot...",
-                                  screenshot,
-                                  debug=debug,
-                                  )
-            except sendmail.smtplib.SMTPException as e:
-                logger.error(e)
-            except Exception as e:
-                logger.error(e, exc_info=True)
-
-            return True
         else:
             #TODO: try manual parsing and sending with urllib2
             logger.warn("manual parsing not implemented yet")
-            return False
 
     finally:
         if driver:  driver.quit()
         if display: display.stop()
 
-    return False
+    return success
 
 
 def parseargs(args=None):
@@ -194,11 +172,16 @@ def parseargs(args=None):
 
 if __name__ == '__main__':
     myname = osp.basename(osp.splitext(__file__)[0])
+    screenshot = osp.join(xdg.xdg_cache_home, "%s_%s.png" % (myname,
+                          datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
+    logfile = osp.join(xdg.xdg_cache_home, '%s.log' % myname)
+
     args = parseargs()
+    debug = args.loglevel=='debug'
+
     logging.basicConfig(level=getattr(logging, args.loglevel.upper(), None),
                         format='%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s',
-                        filename=osp.join(xdg.xdg_cache_home, '%s.log' % myname)
-                        )
+                        filename=logfile)
 
     config = read_config(args.save, args.username, args.password)
 
@@ -210,10 +193,36 @@ if __name__ == '__main__':
         sys.exit(1)
 
     try:
-        if login(username, password, args.visible, args.loglevel=='debug'):
-            sys.exit(0)
-        else:
-            sys.exit(1)
+        success = login(username, password, args.visible, debug)
+
+        logger.info("emailing result")
+        try:
+            # process = subprocess.Popen(
+            #     ['echo "login success" | mail -s "dyndns login success" YOUREMAIL@DOMAIN.TLD'],
+            #     shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # stdout, stderr = process.communicate()
+            message = "Dyndns automatic web login %s" % ("successful" if success
+                                                         else "FAILED!")
+            attachments = []
+            if osp.isfile(screenshot):
+                attachments.append(screenshot)
+
+            if not success:
+                attachments.append(logfile)
+
+            sendmail.sendmail(myname,
+                              username,
+                              message,
+                              message,
+                              attachments,
+                              debug=debug,)
+        except sendmail.smtplib.SMTPException as e:
+            logger.error(e)
+        except Exception as e:
+            logger.error(e, exc_info=True)
+
+        sys.exit(0 if success else 1)
+
     except Exception as e:
         logger.critical(e, exc_info=True)
         sys.exit(1)
