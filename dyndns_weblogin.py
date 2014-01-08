@@ -69,7 +69,7 @@ def read_config(save=False, username=None, password=None):
                 password=password)
 
 
-def login(username, password, visible=False):
+def login(username, password, visible=False, debug=False):
     loginurl = "https://account.dyn.com/entrance"
     display = None
     driver = None
@@ -85,6 +85,8 @@ def login(username, password, visible=False):
                 logger.info("using selenium webdriver for Firefox")
             except selenium.common.exceptions.WebDriverException:
                 logger.warn("Firefox not available, reverting to manual parsing")
+                if debug:
+                    logger.debug("selenium traceback:", exc_info=True)
 
         if driver:
 
@@ -142,7 +144,7 @@ def login(username, password, visible=False):
                                   ("successful" if success else "FAILED!"),
                                   "Here's the screenshot...",
                                   screenshot,
-                                  debug = args.loglevel == 'debug',
+                                  debug=debug,
                                   )
             except sendmail.smtplib.SMTPException as e:
                 logger.error(e)
@@ -208,7 +210,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     try:
-        if login(username, password, args.visible):
+        if login(username, password, args.visible, args.loglevel=='debug'):
             sys.exit(0)
         else:
             sys.exit(1)
