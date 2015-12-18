@@ -35,9 +35,6 @@ myname = __name__
 logger = logging.getLogger(myname)
 
 
-class UpdateError(Exception):
-    pass
-
 def main(args):
     config = read_config(args)
     recipients = args.recipients or config['recipients']
@@ -55,7 +52,11 @@ def main(args):
         logger.warn(e)
         oldip = ""
 
-    newip = upnp.external_ip()
+    try:
+        newip = upnp.external_ip()
+    except (upnp.UpnpError, upnp.socket.error) as e:
+        logger.error(e)
+        return
 
     if newip == oldip:
         logger.info("IP is still %s", oldip)
@@ -77,7 +78,7 @@ def main(args):
                           "External public IP changed to %s" % newip,
                           newip,
                           debug=args.debug,)
-    except sendmail.smtplib.SMTPException as e:
+    except (sendmail.smtplib.SMTPException, sendmail.socket.gaierror) as e:
         logger.error(e)
 
 

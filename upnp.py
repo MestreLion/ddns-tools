@@ -26,6 +26,11 @@ import socket
 import urlparse
 import urllib2
 
+
+class UpnpError(Exception):
+    pass
+
+
 def external_ip():
 
     def search(regex, text):
@@ -51,7 +56,7 @@ def external_ip():
         try:
             data = sock.recv(2048)
         except socket.timeout:
-            raise Exception("No UPnP gateway found")
+            raise UpnpError("No UPnP gateway found")
 
         service  = search(re.compile(r"^ST:\s*([^\s]+WAN(IP|PPP)Connection:\d+)\s*$",
                                      re.IGNORECASE | re.MULTILINE), data)
@@ -68,7 +73,7 @@ def external_ip():
             controlURL = get_tag("ControlURL", serv)
             break
     else:
-        raise Exception("No controlURL found for server: %s" % location)
+        raise UpnpError("No controlURL found for server: %s" % location)
 
     url = urlparse.urljoin(URLBase, controlURL)
     action = "GetExternalIPAddress"
@@ -87,7 +92,7 @@ def external_ip():
     data = urllib2.build_opener().open(req).read()
     ip = data and get_tag("NewExternalIPAddress", data)
     if not ip:
-        raise Exception("Couldn't get external IP address!")
+        raise UpnpError("Couldn't get external IP address!")
 
     return ip
 
