@@ -33,9 +33,9 @@ def external_ip():
         if match:
             return match.groups()[0].strip()
 
-    def get_tag(tag, text, all=False):
+    def get_tag(tag, text, alltags=False):
         r = re.compile(r"<%s>(.+?)</%s>" % (tag, tag), re.IGNORECASE | re.DOTALL)
-        if all:
+        if alltags:
             return r.findall(text)
         else:
             return search(r, text)
@@ -53,15 +53,17 @@ def external_ip():
         except socket.timeout:
             raise Exception("No UPnP gateway found")
 
-        service  = search(re.compile(r"^ST:\s*([^\s]+WAN(IP|PPP)Connection:\d+)\s*$", re.IGNORECASE | re.MULTILINE), data)
-        location = search(re.compile(r"^Location:\s*([^\s]+)\s*$", re.IGNORECASE | re.MULTILINE), data)
+        service  = search(re.compile(r"^ST:\s*([^\s]+WAN(IP|PPP)Connection:\d+)\s*$",
+                                     re.IGNORECASE | re.MULTILINE), data)
+        location = search(re.compile(r"^Location:\s*([^\s]+)\s*$",
+                                     re.IGNORECASE | re.MULTILINE), data)
 
         if location and service:
             break
 
     data = urllib2.build_opener().open(location).read()
     URLBase = get_tag("URLBase", data) or "http://%s" % urlparse.urlparse(location).netloc
-    for serv in get_tag("service", data, all=True):
+    for serv in get_tag("service", data, alltags=True):
         if get_tag("serviceType", serv) == service:
             controlURL = get_tag("ControlURL", serv)
             break
