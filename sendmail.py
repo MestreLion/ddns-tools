@@ -96,14 +96,16 @@ def sendmail(sender, recipients, subject="", text="", attachments=[],
                               filename=osp.basename(attachment))
             msg.attach(part)
 
-    # Connect
     if usetls:
-        smtp = smtplib.SMTP_SSL(mailhub)
+        smtp = smtplib.SMTP_SSL()
     else:
-        smtp = smtplib.SMTP(mailhub)
+        smtp = smtplib.SMTP()
+
+    smtp.set_debuglevel(1 if debug else 0)
 
     try:
-        smtp.set_debuglevel(1 if debug else 0)
+        # Connect
+        smtp.connect(mailhub)
         # Authenticate
         if authuser and authpass:
             smtp.login(authuser, authpass)
