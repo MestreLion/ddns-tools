@@ -34,11 +34,7 @@ import xdg.BaseDirectory as xdg
 import urllib
 import urllib2
 import base64
-try:
-    # Debian/Ubuntu: python-keyring
-    import keyring
-except ImportError:
-    keyring = None
+import cStringIO
 
 
 myname = os.path.basename(os.path.splitext(__file__)[0])
@@ -56,6 +52,11 @@ class HttpAuth(object):
         if querydata:
             url = "%s?%s" % (url, urllib.urlencode(querydata))
 
+        if postdata:
+            data = urllib.urlencode(postdata)
+        else:
+            data = None
+
         log.debug("Opening '%s'", url)
 
         if username and password:
@@ -66,18 +67,30 @@ class HttpAuth(object):
         else:
             req = url
 
-        if postdata:
-            return self._opener.open(req, urllib.urlencode(postdata))
-        else:
-            return self._opener.open(req)
+        # Redirect stdout so urllib's debug data gets properly logged
+        stdout_ = sys.stdout
+        stream = cStringIO.StringIO()
+        sys.stdout = stream
+
+        # Open the URL
+        res = self._opener.open(req, data)
+
+        # Restore stdout and log output, if any
+        sys.stdout = stdout_
+        output = stream.getvalue().strip()
+        if output:
+            for line in output.split('\n'):
+                log.debug(line)
+
+        return res
 
 
 def main(argv=None):
     args = parse_args(argv)
     logging.basicConfig(level=args.loglevel,
                         format='%(asctime)s\t%(levelname)-8s\t%(message)s',
-                        )#filename=os.path.join(xdg.xdg_cache_home,
-                        #                      '%s.log' % myname))
+                        filename=os.path.join(xdg.xdg_cache_home,
+                                              '%s.log' % myname))
     log.debug(args)
     config = read_config(args)
 
@@ -85,7 +98,7 @@ def main(argv=None):
     password  = args.password  or config['password']  or PASSWORD
     hostnames = args.hostnames or config['hostnames'] or HOSTNAMES
 
-    if not (username or password):
+    if not (username and password):
         log.error("Missing credentials."
                   " Set them up once with --username and --password")
         return -1
@@ -107,7 +120,7 @@ def main(argv=None):
         log.error("Unauthorized, check your login and password")
         return -1
 
-    body = res.read()
+    body = res.read().strip()
     for line in body.split('\n'):
         log.info(line)
 
@@ -118,63 +131,31 @@ def main(argv=None):
 
 def read_config(args):
     config = os.path.join(xdg.save_config_path(myname), "%s.conf" % myname)
-    auth   = os.path.join(xdg.save_config_path(myname), "%s.auth.conf" % myname)
 
     username = ""
     password = ""
     hostnames = []
 
     # Read
-    if keyring:
-        log.debug("Reading credentials from keyring")
-        try:
-            username, password = (keyring.get_password(myname, '').split('\n')
-                                  + ['\n'])[:2]
-        except IOError as e:
-            log.error(e)
-        except AttributeError as e:
-            # not found in keyring
-            pass
-    else:
-        log.debug("Reading credentials from '%s'", auth)
-        try:
-            with open(config, 'r') as fd:
-                username, password = (fd.read().splitlines() + ['\n'])[:2]
-        except IOError as e:
-            log.warn(e)
-
-    log.debug("Reading hostnames from '%s'" % config)
+    log.debug("Reading settings from '%s'", config)
     try:
         with open(config, 'r') as fd:
+            username, password = fd.readline().strip().split('\t')
             for line in fd:
                 hostnames.append(line.strip())
     except IOError as e:
         log.warn(e)
+    except ValueError as e:
+        log.error("Error in config file, check credentials at '%s'", config)
 
     # Save
-    if args.username or args.password:
-        log.info("Saving credentials")
-        if keyring:
-            log.debug("Saving credentials to keyring")
-            keyring.set_password(myname, '',
-                                 '%s\n%s' % (args.username or username,
-                                             args.password or password,))
-        else:
-            log.debug("Saving credentials to '%s'", auth)
-            try:
-                with open(auth, 'w') as fd:
-                    fd.write("%s\n%s\n" % (args.username or username,
-                                           args.password or password,))
-                os.chmod(auth, 0600)
-            except IOError as e:
-                log.error(e)
-
-    if args.hostnames:
-        log.info("Saving hostnames")
+    if args.username or args.password or args.hostnames:
+        log.info("Saving settings to '%s'", config)
         try:
-            log.debug("Saving hostnames to '%s'", config)
             with open(config, 'w') as fd:
-                for hostname in args.hostnames:
+                fd.write("%s\t%s\n" % (args.username or username,
+                                       args.password or password,))
+                for hostname in (args.hostnames or hostnames):
                     fd.write("%s\n" % hostname)
             os.chmod(config, 0600)
         except IOError as e:
@@ -201,7 +182,9 @@ def parse_args(argv=None):
                        dest='loglevel',
                        const=logging.DEBUG,
                        action="store_const",
-                       help="Verbose mode, output extra info.")
+                       help="Verbose mode, output extra info."
+                        " This will disclose your username and password"
+                        " in the log file, so use with care!")
 
     group = parser.add_argument_group("Authentication Options")
     group.add_argument('-u', '--username', help="Account username or email")
