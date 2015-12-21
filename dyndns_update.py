@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# dyndns-update - Find external IP and make it visible
+# dyndns-update - Find external IP and take actions when it changes
 #
 #    Copyright (C) 2013 Rodrigo Silva (MestreLion) <linux@rodrigosilva.com>
 #
@@ -19,7 +19,7 @@
 #    along with this program. See <http://www.gnu.org/licenses/gpl.html>
 #
 # "dyndns" is actually a misnomer: it has nothing to do with DynDNS.com
-# "Make the IP it visible" currently means "email it". Crude, but it works
+# For now, actions are to email the new IP and notify NoIP.com DDNS provider
 
 
 import sys
@@ -30,6 +30,8 @@ import xdg.BaseDirectory as xdg
 
 import sendmail
 import upnp
+import noip
+
 
 myname = __name__
 logger = logging.getLogger(myname)
@@ -37,6 +39,7 @@ logger = logging.getLogger(myname)
 
 def main(args):
     config = read_config(args)
+    logger.debug(args)
     recipients = args.recipients or config['recipients']
     if not recipients:
         logger.error("Recipients list is empty. Set them up once using command line arguments")
@@ -80,6 +83,9 @@ def main(args):
                           debug=args.debug,)
     except (sendmail.smtplib.SMTPException, sendmail.socket.gaierror) as e:
         logger.error(e)
+
+    logger.info("Notifying NoIP.com")
+    noip.main(["-v"] if args.debug else [])
 
 
 def read_config(args):
