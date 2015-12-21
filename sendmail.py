@@ -29,7 +29,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 
-logger = logging.getLogger(__name__)
+
+log = logging.getLogger(__name__)
+
 
 # TODO: make this a class with all attributes with default values
 def ssmtp_config():
@@ -101,7 +103,13 @@ def sendmail(sender, recipients, subject="", text="", attachments=[],
     else:
         smtp = smtplib.SMTP()
 
-    smtp.set_debuglevel(1 if debug else 0)
+    if debug:
+        # Redirect stderr so smtplib's debug data gets properly logged
+        logging.basicConfig(level=logging.DEBUG)
+        stderr_ = smtplib.stderr
+        stream = StringIO.StringIO()
+        smtplib.stderr = stream
+        smtp.set_debuglevel(1)
 
     try:
         # Connect
@@ -112,7 +120,19 @@ def sendmail(sender, recipients, subject="", text="", attachments=[],
         # Send
         smtp.sendmail(sender, recipients, msg.as_string())
     finally:
-        smtp.quit()
+        try:
+            smtp.quit()
+        except smtplib.SMTPException as e:
+            log.warn(e)
+        if debug:
+            # Restore stderr and log output, if any
+            smtplib.stderr = stderr_
+            output = stream.getvalue().strip()
+            if output:
+                for line in output.split('\n'):
+                    log.debug(line)
+
+
 
 
 if __name__ == '__main__':
