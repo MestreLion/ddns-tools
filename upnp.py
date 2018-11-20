@@ -23,8 +23,8 @@
 import sys
 import re
 import socket
-import urlparse
-import urllib2
+
+import urllib23
 
 
 class UpnpError(Exception):
@@ -66,8 +66,8 @@ def external_ip():
         if location and service:
             break
 
-    data = urllib2.build_opener().open(location).read()
-    URLBase = get_tag("URLBase", data) or "http://%s" % urlparse.urlparse(location).netloc
+    data = urllib23.build_opener().open(location).read()
+    URLBase = get_tag("URLBase", data) or "http://%s" % urllib23.urlparse(location).netloc
     for serv in get_tag("service", data, alltags=True):
         if get_tag("serviceType", serv) == service:
             controlURL = get_tag("ControlURL", serv)
@@ -75,7 +75,7 @@ def external_ip():
     else:
         raise UpnpError("No controlURL found for server: %s" % location)
 
-    url = urlparse.urljoin(URLBase, controlURL)
+    url = urllib23.urljoin(URLBase, controlURL)
     action = "GetExternalIPAddress"
     data = """<?xml version="1.0"?>
     <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
@@ -85,11 +85,11 @@ def external_ip():
     </s:Body>
     </s:Envelope>""" % (action, service, action)
 
-    req = urllib2.Request(url)
+    req = urllib23.Request(url)
     req.add_header('content-type', 'text/xml; charset="utf-8"')
     req.add_header('SOAPACTION', '"%s#%s"' % (service, action))
     req.add_data(data)
-    data = urllib2.build_opener().open(req).read()
+    data = urllib23.build_opener().open(req).read()
     ip = data and get_tag("NewExternalIPAddress", data)
     if not ip:
         raise UpnpError("Couldn't get external IP address!")
@@ -102,12 +102,12 @@ Usage: python upnp.py
 """
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        print USAGE
+        print(USAGE)
         sys.exit()
 
     try:
-        print external_ip()
+        print(external_ip())
         sys.exit(0)
     except Exception as e:
-        print e
+        print(e)
         sys.exit(1)
