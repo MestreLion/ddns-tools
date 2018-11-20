@@ -65,6 +65,10 @@ def main(args):
         logger.info("IP is still %s", oldip)
         if not args.force:
             return
+    elif newip == '0.0.0.0':
+        logger.info("IP changed to %s, ignoring", newip)
+        if not args.force:
+            return
     else:
         logger.info("IP changed from %s to %s", oldip, newip)
         logger.debug("Saving new IP file", ipfile)
