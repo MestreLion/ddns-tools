@@ -44,12 +44,22 @@ def external_ip():
         else:
             return search(r, text)
 
+    def sockdata(data):
+        return bytes(re.sub('[\t ]*\r?\n[\t ]*', '\r\n', data.lstrip()), 'utf-8')
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
     sock.settimeout(10)
 
-    data = b'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\nMX: 5\r\nST: ssdp:all\r\n\r\n'
-    sock.sendto(data, ("239.255.255.250", 1900))
+    data = """
+        M-SEARCH * HTTP/1.1
+        HOST: 239.255.255.250:1900
+        MAN: "ssdp:discover"
+        MX: 5
+        ST: ssdp:all
+
+    """
+    sock.sendto(sockdata(data), ("239.255.255.250", 1900))
 
     while True:
         try:
