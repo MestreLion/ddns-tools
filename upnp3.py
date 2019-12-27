@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 #
 # upnp - Find external IP address querying NAT Router/Gateway via UPnP
 #
@@ -24,7 +23,7 @@ import sys
 import re
 import socket
 
-import urllib23
+import requests
 
 
 class UpnpError(Exception):
@@ -39,7 +38,7 @@ def external_ip():
             return match.groups()[0].strip()
 
     def get_tag(tag, text, alltags=False):
-        r = re.compile(r"<%s>(.+?)</%s>" % (tag, tag), re.IGNORECASE | re.DOTALL)
+        r = re.compile(fr"<{tag}>(.+?)</{tag}>", re.IGNORECASE | re.DOTALL)
         if alltags:
             return r.findall(text)
         else:
@@ -49,12 +48,12 @@ def external_ip():
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
     sock.settimeout(10)
 
-    data = 'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\nMX: 5\r\nST: ssdp:all\r\n\r\n'
+    data = b'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\nMX: 5\r\nST: ssdp:all\r\n\r\n'
     sock.sendto(data, ("239.255.255.250", 1900))
 
     while True:
         try:
-            data = sock.recv(2048)
+            data = sock.recv(2048).decode()
         except socket.timeout:
             raise UpnpError("No UPnP gateway found")
 
@@ -66,30 +65,29 @@ def external_ip():
         if location and service:
             break
 
-    data = urllib23.build_opener().open(location).read()
-    URLBase = get_tag("URLBase", data) or "http://%s" % urllib23.urlparse(location).netloc
+    data = requests.get(location).text
+    URLBase = get_tag("URLBase", data) or ("http://" + requests.utils.urlparse(location).netloc)
     for serv in get_tag("service", data, alltags=True):
         if get_tag("serviceType", serv) == service:
             controlURL = get_tag("ControlURL", serv)
             break
     else:
-        raise UpnpError("No controlURL found for server: %s" % location)
+        raise UpnpError(f"No controlURL found for server: {location}")
 
-    url = urllib23.urljoin(URLBase, controlURL)
+    url = requests.compat.urljoin(URLBase, controlURL)
     action = "GetExternalIPAddress"
-    data = """<?xml version="1.0"?>
+    headers = {
+        'content-type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': f'"{service}#{action}"',
+    }
+    data = f"""<?xml version="1.0"?>
     <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
         s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
     <s:Body>
-    <u:%s xmlns:u="%s"></u:%s>
+    <u:{action} xmlns:u="{service}"></u:{action}>
     </s:Body>
-    </s:Envelope>""" % (action, service, action)
-
-    req = urllib23.Request(url)
-    req.add_header('content-type', 'text/xml; charset="utf-8"')
-    req.add_header('SOAPACTION', '"%s#%s"' % (service, action))
-    req.add_data(data)
-    data = urllib23.build_opener().open(req).read()
+    </s:Envelope>"""
+    data = requests.post(url, headers=headers, data=data).text
     ip = data and get_tag("NewExternalIPAddress", data)
     if not ip:
         raise UpnpError("Couldn't get external IP address!")
@@ -98,7 +96,7 @@ def external_ip():
 
 
 USAGE = """Find external IP address via UPnP
-Usage: python upnp.py
+Usage: python3 upnp3.py
 """
 if __name__ == "__main__":
     if len(sys.argv) > 1:
