@@ -61,10 +61,13 @@ def external_ip():
     """
     sock.sendto(sockdata(data), ("239.255.255.250", 1900))
 
+    endpoints = []
     while True:
         try:
             data = sock.recv(2048).decode()
         except socket.timeout:
+            if endpoints:
+                break
             raise UpnpError("No UPnP gateway found")
 
         service  = search(re.compile(r"^ST:\s*([^\s]+WAN(IP|PPP)Connection:\d+)\s*$",
@@ -73,13 +76,19 @@ def external_ip():
                                      re.IGNORECASE | re.MULTILINE), data)
 
         if location and service:
-            break
+            endpoints.append((location, service))
+            if ':WANIPConnection:' in service:
+                break
 
-    data = requests.get(location).text
-    URLBase = get_tag("URLBase", data) or ("http://" + requests.utils.urlparse(location).netloc)
-    for serv in get_tag("service", data, alltags=True):
-        if get_tag("serviceType", serv) == service:
-            controlURL = get_tag("ControlURL", serv)
+    controlURL = ""
+    for location, service in endpoints:
+        data = requests.get(location).text
+        URLBase = get_tag("URLBase", data) or ("http://" + requests.utils.urlparse(location).netloc)
+        for serv in get_tag("service", data, alltags=True):
+            if get_tag("serviceType", serv) == service:
+                controlURL = get_tag("ControlURL", serv)
+                break
+        if controlURL:
             break
     else:
         raise UpnpError(f"No controlURL found for server: {location}")
