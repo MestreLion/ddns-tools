@@ -106,6 +106,8 @@ def external_ip():
     <u:{action} xmlns:u="{service}"></u:{action}>
     </s:Body>
     </s:Envelope>"""
+    print(headers)
+    print(data)
     data = requests.post(url, headers=headers, data=data).text
     ip = data and get_tag("NewExternalIPAddress", data)
     if not ip:
